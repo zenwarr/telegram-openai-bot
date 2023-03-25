@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sashabaranov/go-openai"
 	"log"
@@ -38,54 +39,57 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	msgText := update.Message.Text
+	command := update.Message.Command()
+	if command == "start" || command == "" {
+		sendHello(appContext, update.Message.Chat.ID)
+		return
+	} else if command != "" {
+		sendError(appContext, fmt.Sprintf("Unknown command: %s", command), update.Message.Chat.ID)
+		return
+	}
 
-	if msgText == "/start" {
-		// onStart()
+	dialogId := src.GetDialogId(appContext, &update)
+
+	err := appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: update.Message.Text,
+	})
+	if err != nil {
+		log.Printf("Failed to save dialog message: %s", err)
+		return
+	}
+
+	dialogMessages, err := appContext.Database.GetDialog(dialogId)
+	if err != nil {
+		log.Printf("Failed to get dialog messages: %s", err)
+		return
+	}
+
+	actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
+	_, err = appContext.TelegramBot.Send(actionConfig)
+	if err != nil {
+		log.Printf("Failed to send typing action: %s", err)
+	}
+
+	replyText := ""
+	if appContext.Config.StreamResponse {
+		replyText, err = streamingReplyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+		if err != nil {
+			log.Printf("Failed to get reply: %s", err)
+		}
 	} else {
-		dialogId := src.GetDialogId(appContext, &update)
-
-		err := appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
-			Role:    openai.ChatMessageRoleUser,
-			Content: update.Message.Text,
-		})
+		replyText, err = replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
 		if err != nil {
-			log.Printf("Failed to save dialog message: %s", err)
-			return
+			log.Printf("Failed to get reply: %s", err)
 		}
+	}
 
-		dialogMessages, err := appContext.Database.GetDialog(dialogId)
-		if err != nil {
-			log.Printf("Failed to get dialog messages: %s", err)
-			return
-		}
-
-		actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
-		_, err = appContext.TelegramBot.Send(actionConfig)
-		if err != nil {
-			log.Printf("Failed to send typing action: %s", err)
-		}
-
-		replyText := ""
-		if appContext.Config.StreamResponse {
-			replyText, err = streamingReplyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
-			if err != nil {
-				log.Printf("Failed to get reply: %s", err)
-			}
-		} else {
-			replyText, err = replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
-			if err != nil {
-				log.Printf("Failed to get reply: %s", err)
-			}
-		}
-
-		err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
-			Role:    openai.ChatMessageRoleAssistant,
-			Content: replyText,
-		})
-		if err != nil {
-			log.Printf("Failed to save dialog message: %s", err)
-		}
+	err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
+		Role:    openai.ChatMessageRoleAssistant,
+		Content: replyText,
+	})
+	if err != nil {
+		log.Printf("Failed to save dialog message: %s", err)
 	}
 }
 
@@ -185,4 +189,29 @@ func sendInitialMsg(appContext *src.AppContext, chatId int64, text string, reply
 	}
 
 	return sentMsg.MessageID
+}
+
+func sendHello(appContext *src.AppContext, chatId int64) {
+	helpMsg := appContext.Config.Messages["help"]
+	if helpMsg == "" {
+		helpMsg = "Type anything to start a conversation."
+	}
+
+	msg := tgapi.NewMessage(chatId, helpMsg)
+	msg.ParseMode = "Markdown"
+
+	_, err := appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send hello message: %s", err)
+	}
+}
+
+func sendError(appContext *src.AppContext, message string, chatId int64) {
+	msg := tgapi.NewMessage(chatId, "‼ "+message)
+	msg.ParseMode = "Markdown"
+
+	_, err := appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send error message: %s", err)
+	}
 }
