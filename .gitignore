@@ -3,3 +3,4 @@
 db
 *.pb.go
 todo.txt
+telegram-openai-bot

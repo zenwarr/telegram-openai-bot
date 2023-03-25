@@ -3,45 +3,31 @@ package main
 import (
 	"context"
 	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
 	"github.com/sashabaranov/go-openai"
 	"log"
 	"openai-telegram-bot/src"
 	"openai-telegram-bot/src/protos"
-	"os"
 )
 
 func main() {
-	err := godotenv.Load()
+	appContext, err := src.NewAppContext()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatalf("Failed to initialize app: %s", err)
 	}
 
-	tg, err := tgapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	openaiClient := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
-
-	db, err := src.NewDatabase("db")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Authorized on account %s", tg.Self.UserName)
+	log.Printf("Authorized on account %s", appContext.TelegramBot.Self.UserName)
 
 	u := tgapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates := tg.GetUpdatesChan(u)
+	updates := appContext.TelegramBot.GetUpdatesChan(u)
 
 	for update := range updates {
-		handleUpdate(db, openaiClient, tg, update)
+		handleUpdate(appContext, update)
 	}
 }
 
-func handleUpdate(db *src.Database, openaiClient *openai.Client, bot *tgapi.BotAPI, update tgapi.Update) {
+func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	if update.Message == nil {
 		return
 	}
@@ -51,7 +37,7 @@ func handleUpdate(db *src.Database, openaiClient *openai.Client, bot *tgapi.BotA
 	if msgText == "/start" {
 		// onStart()
 	} else {
-		err := db.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
+		err := appContext.Database.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: update.Message.Text,
 		})
@@ -60,24 +46,24 @@ func handleUpdate(db *src.Database, openaiClient *openai.Client, bot *tgapi.BotA
 			return
 		}
 
-		dialogMessages, err := db.GetDialog(update.Message.Chat.ID)
+		dialogMessages, err := appContext.Database.GetDialog(update.Message.Chat.ID)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
 		actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
-		_, err = bot.Send(actionConfig)
+		_, err = appContext.TelegramBot.Send(actionConfig)
 		if err != nil {
 			log.Println(err)
 		}
 
-		replyMsg, err := replyToText(openaiClient, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+		replyMsg, err := replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
 		if err != nil {
 			log.Println(err)
 		}
 
-		err = db.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
+		err = appContext.Database.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: replyMsg.Text,
 		})
@@ -85,12 +71,12 @@ func handleUpdate(db *src.Database, openaiClient *openai.Client, bot *tgapi.BotA
 			log.Println(err) // but still send the message
 		}
 
-		bot.Send(replyMsg)
+		appContext.TelegramBot.Send(replyMsg)
 	}
 }
 
-func replyToText(openaiClient *openai.Client, dialogMessages []protos.DialogMessage, chatID int64, messageID int) (*tgapi.MessageConfig, error) {
-	reply, err := getAIReply(openaiClient, dialogMessages)
+func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatID int64, messageID int) (*tgapi.MessageConfig, error) {
+	reply, err := getAIReply(appContext, dialogMessages)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +87,7 @@ func replyToText(openaiClient *openai.Client, dialogMessages []protos.DialogMess
 	return &msg, nil
 }
 
-func getAIReply(openaiClient *openai.Client, messages []protos.DialogMessage) (string, error) {
+func getAIReply(appContext *src.AppContext, messages []protos.DialogMessage) (string, error) {
 	openaiMessages := make([]openai.ChatCompletionMessage, len(messages))
 	for i, msg := range messages {
 		openaiMessages[i] = openai.ChatCompletionMessage{
@@ -110,7 +96,7 @@ func getAIReply(openaiClient *openai.Client, messages []protos.DialogMessage) (s
 		}
 	}
 
-	resp, err := openaiClient.CreateChatCompletion(
+	resp, err := appContext.OpenAI.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
 			Model:    openai.GPT3Dot5Turbo0301,
