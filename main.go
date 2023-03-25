@@ -76,11 +76,8 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
-	_, err = appContext.TelegramBot.Send(actionConfig)
-	if err != nil {
-		log.Printf("Failed to send typing action: %s", err)
-	}
+	endTyping := src.StartTypingStatus(appContext, update.Message.Chat.ID)
+	defer func() { endTyping <- true }()
 
 	replyText := ""
 	if appContext.Config.StreamResponse {
