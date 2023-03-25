@@ -141,6 +141,7 @@ func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessa
 
 	msg := tgapi.NewMessage(chatID, reply)
 	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
 
 	if appContext.Config.SendReplies {
 		msg.ReplyToMessageID = messageID
@@ -218,6 +219,7 @@ func updateMsg(appContext *src.AppContext, chatId int64, messageId int, text str
 func sendInitialMsg(appContext *src.AppContext, chatId int64, text string, replyTo int) int {
 	msg := tgapi.NewMessage(chatId, text)
 	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
 
 	if appContext.Config.SendReplies {
 		msg.ReplyToMessageID = replyTo
@@ -239,6 +241,7 @@ func sendHello(appContext *src.AppContext, chatId int64) {
 
 	msg := tgapi.NewMessage(chatId, helpMsg)
 	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
 
 	_, err := appContext.TelegramBot.Send(msg)
 	if err != nil {
@@ -249,6 +252,7 @@ func sendHello(appContext *src.AppContext, chatId int64) {
 func sendError(appContext *src.AppContext, message string, chatId int64) {
 	msg := tgapi.NewMessage(chatId, "‼ "+message)
 	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
 
 	_, err := appContext.TelegramBot.Send(msg)
 	if err != nil {
