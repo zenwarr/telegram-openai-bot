@@ -40,3 +40,11 @@ func NewConfig(path string) (*Config, error) {
 
 	return &config, nil
 }
+
+func (config *Config) GetMessage(name string, def string) string {
+	if msg, ok := config.Messages[name]; ok {
+		return msg
+	}
+
+	return def
+}

@@ -36,6 +36,7 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 
 	if !src.CheckUserAccess(appContext, &update) {
 		log.Printf("Unauthorized user %s tried to access bot", src.GetFormattedSenderName(update.Message))
+		sendNotWantedHere(appContext, update.Message.Chat.ID, update.Message.From.ID, update.Message.MessageID)
 		return
 	}
 
@@ -234,10 +235,7 @@ func sendInitialMsg(appContext *src.AppContext, chatId int64, text string, reply
 }
 
 func sendHello(appContext *src.AppContext, chatId int64) {
-	helpMsg := appContext.Config.Messages["help"]
-	if helpMsg == "" {
-		helpMsg = "Type anything to start a conversation."
-	}
+	helpMsg := appContext.Config.GetMessage("help", "Type anything to start a conversation")
 
 	msg := tgapi.NewMessage(chatId, helpMsg)
 	msg.ParseMode = "Markdown"
@@ -257,5 +255,40 @@ func sendError(appContext *src.AppContext, message string, chatId int64) {
 	_, err := appContext.TelegramBot.Send(msg)
 	if err != nil {
 		log.Printf("Failed to send error message: %s", err)
+	}
+}
+
+func sendNotWantedHere(appContext *src.AppContext, chatId int64, userId int64, replyTo int) {
+	msgText := appContext.Config.GetMessage("not_wanted_here", "")
+	if msgText == "" {
+		return
+	}
+
+	notWantedAlreadySent, err := appContext.Database.GetNotWantedSent(userId)
+	if err != nil {
+		log.Printf("Failed to get not_wanted_sent from db: %s", err)
+		return
+	}
+
+	if notWantedAlreadySent {
+		return
+	}
+
+	msg := tgapi.NewMessage(chatId, msgText)
+	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
+
+	if replyTo != 0 {
+		msg.ReplyToMessageID = replyTo
+	}
+
+	_, err = appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send not_wanted_here message: %s", err)
+	}
+
+	err = appContext.Database.SetNotWantedSent(userId)
+	if err != nil {
+		log.Printf("Failed to set not_wanted_sent in db: %s", err)
 	}
 }

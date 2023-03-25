@@ -4,6 +4,7 @@ import (
 	"github.com/nutsdb/nutsdb"
 	"google.golang.org/protobuf/proto"
 	"openai-telegram-bot/src/protos"
+	"time"
 )
 
 type Database struct {
@@ -69,4 +70,39 @@ func (d *Database) GetDialog(dialogId string) ([]protos.DialogMessage, error) {
 	}
 
 	return messages, nil
+}
+
+func (d *Database) GetNotWantedSent(userId int64) (bool, error) {
+	var notWantedSent bool
+
+	err := d.db.View(
+		func(tx *nutsdb.Tx) error {
+			entry, err := tx.Get("not_wanted_sent", []byte(string(userId)))
+			if nutsdb.IsBucketNotFound(err) {
+				return nil
+			}
+
+			if err != nil {
+				return err
+			}
+
+			notWantedSent = entry.Value[0] == 1
+
+			return nil
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return notWantedSent, nil
+}
+
+func (d *Database) SetNotWantedSent(userId int64) error {
+	return d.db.Update(
+		func(tx *nutsdb.Tx) error {
+			var value byte = 1
+			return tx.Put("not_wanted_sent", []byte(string(userId)), []byte{value}, uint32((time.Hour * 24 * 7).Seconds()))
+		},
+	)
 }
