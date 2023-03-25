@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option go_package = "./src/protos";
+
+message DialogMessage {
+  string role = 1;
+  string content = 2;
+}
