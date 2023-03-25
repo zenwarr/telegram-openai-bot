@@ -67,7 +67,10 @@ func handleUpdate(db *src.Database, openaiClient *openai.Client, bot *tgapi.BotA
 		}
 
 		actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
-		bot.Send(actionConfig)
+		_, err = bot.Send(actionConfig)
+		if err != nil {
+			log.Println(err)
+		}
 
 		replyMsg, err := replyToText(openaiClient, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
 		if err != nil {
