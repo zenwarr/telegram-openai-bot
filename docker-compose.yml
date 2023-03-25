@@ -2,4 +2,4 @@ services:
   app:
     build: .
     volumes:
-      - .env:/app/.env
+      - ./config.json:/app/config.json

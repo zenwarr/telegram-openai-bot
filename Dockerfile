@@ -13,7 +13,7 @@ RUN make all
 # build complete
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates ffmpeg
 WORKDIR /app
 COPY --from=build /build/telegram-openai-bot /app
 RUN chmod +x telegram-openai-bot
