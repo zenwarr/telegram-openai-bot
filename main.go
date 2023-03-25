@@ -33,6 +33,11 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
+	if !src.CheckUserAccess(appContext, &update) {
+		log.Printf("Unauthorized user %s tried to access bot", src.GetFormattedSenderName(update.Message))
+		return
+	}
+
 	msgText := update.Message.Text
 
 	if msgText == "/start" {
