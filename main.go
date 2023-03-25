@@ -97,7 +97,10 @@ func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessa
 
 	msg := tgapi.NewMessage(chatID, reply)
 	msg.ParseMode = "Markdown"
-	msg.ReplyToMessageID = messageID
+
+	if appContext.Config.SendReplies {
+		msg.ReplyToMessageID = messageID
+	}
 
 	_, err = appContext.TelegramBot.Send(msg)
 	if err != nil {
@@ -171,7 +174,10 @@ func updateMsg(appContext *src.AppContext, chatId int64, messageId int, text str
 func sendInitialMsg(appContext *src.AppContext, chatId int64, text string, replyTo int) int {
 	msg := tgapi.NewMessage(chatId, text)
 	msg.ParseMode = "Markdown"
-	msg.ReplyToMessageID = replyTo
+
+	if appContext.Config.SendReplies {
+		msg.ReplyToMessageID = replyTo
+	}
 
 	sentMsg, err := appContext.TelegramBot.Send(msg)
 	if err != nil {

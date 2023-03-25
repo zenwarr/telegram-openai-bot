@@ -16,6 +16,8 @@ type Config struct {
 	DialogContextTrackingMode string `json:"dialog_context_tracking_mode"`
 	StreamResponse            bool   `json:"stream_response"`
 
+	SendReplies bool `json:"send_replies"`
+
 	Users []string `json:"users"`
 }
 
