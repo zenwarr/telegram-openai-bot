@@ -2,7 +2,9 @@ package src
 
 import (
 	"context"
+	"errors"
 	"github.com/sashabaranov/go-openai"
+	"io"
 	"log"
 	"openai-telegram-bot/src/protos"
 )
@@ -30,4 +32,43 @@ func GetCompleteReply(appContext *AppContext, messages []protos.DialogMessage) (
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+func StreamReply(appContext *AppContext, messages []protos.DialogMessage, replyCh chan string) error {
+	openaiMessages := make([]openai.ChatCompletionMessage, len(messages))
+	for i, msg := range messages {
+		openaiMessages[i] = openai.ChatCompletionMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+
+	req := openai.ChatCompletionRequest{
+		Model:    openai.GPT3Dot5Turbo0301,
+		Messages: openaiMessages,
+		Stream:   true,
+	}
+
+	stream, err := appContext.OpenAI.CreateChatCompletionStream(context.Background(), req)
+	if err != nil {
+		return err
+	}
+
+	defer stream.Close()
+	defer close(replyCh)
+
+	for {
+		response, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		replyCh <- response.Choices[0].Delta.Content
+	}
+
+	return nil
 }

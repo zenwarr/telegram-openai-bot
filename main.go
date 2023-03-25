@@ -6,6 +6,8 @@ import (
 	"log"
 	"openai-telegram-bot/src"
 	"openai-telegram-bot/src/protos"
+	"strings"
+	"time"
 )
 
 func main() {
@@ -59,34 +61,117 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 			log.Printf("Failed to send typing action: %s", err)
 		}
 
-		replyMsg, err := replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
-		if err != nil {
-			log.Printf("Failed to get reply: %s", err)
+		replyText := ""
+		if appContext.Config.StreamResponse {
+			replyText, err = streamingReplyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+			if err != nil {
+				log.Printf("Failed to get reply: %s", err)
+			}
+		} else {
+			replyText, err = replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+			if err != nil {
+				log.Printf("Failed to get reply: %s", err)
+			}
 		}
 
 		err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: replyMsg.Text,
+			Content: replyText,
 		})
 		if err != nil {
 			log.Printf("Failed to save dialog message: %s", err)
 		}
-
-		_, err = appContext.TelegramBot.Send(replyMsg)
-		if err != nil {
-			log.Printf("Failed to send reply: %s", err)
-		}
 	}
 }
 
-func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatID int64, messageID int) (*tgapi.MessageConfig, error) {
+func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatID int64, messageID int) (string, error) {
 	reply, err := src.GetCompleteReply(appContext, dialogMessages)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	msg := tgapi.NewMessage(chatID, reply)
+	msg.ParseMode = "Markdown"
 	msg.ReplyToMessageID = messageID
 
-	return &msg, nil
+	_, err = appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send reply: %s", err)
+	}
+
+	return msg.Text, nil
+}
+
+func streamingReplyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatId int64, replyTo int) (string, error) {
+	replyCh := make(chan string)
+
+	sentMsgId := 0
+	completeText := strings.Builder{}
+	updateTimer := time.NewTimer(time.Second)
+	updatedSinceLastTimer := false
+
+	go func() {
+		src.StreamReply(appContext, dialogMessages, replyCh)
+	}()
+
+loop:
+	for {
+		select {
+		case delta, ok := <-replyCh:
+			if !ok {
+				if sentMsgId == 0 {
+					sendInitialMsg(appContext, chatId, completeText.String(), replyTo)
+				} else {
+					updateMsg(appContext, chatId, sentMsgId, completeText.String())
+				}
+
+				break loop
+			}
+
+			if delta == "" {
+				continue
+			}
+
+			completeText.WriteString(delta)
+			updatedSinceLastTimer = true
+
+		case <-updateTimer.C:
+			if !updatedSinceLastTimer {
+				continue
+			}
+
+			if sentMsgId == 0 {
+				sentMsgId = sendInitialMsg(appContext, chatId, completeText.String(), replyTo)
+			} else {
+				updateMsg(appContext, chatId, sentMsgId, completeText.String())
+			}
+
+			updatedSinceLastTimer = false
+			updateTimer.Reset(time.Second)
+		}
+	}
+
+	return completeText.String(), nil
+}
+
+func updateMsg(appContext *src.AppContext, chatId int64, messageId int, text string) {
+	edit := tgapi.NewEditMessageText(chatId, messageId, text)
+
+	_, err := appContext.TelegramBot.Send(edit)
+	if err != nil {
+		log.Printf("Failed to edit reply: %s", err)
+	}
+}
+
+func sendInitialMsg(appContext *src.AppContext, chatId int64, text string, replyTo int) int {
+	msg := tgapi.NewMessage(chatId, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyToMessageID = replyTo
+
+	sentMsg, err := appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send reply: %s", err)
+	}
+
+	return sentMsg.MessageID
 }
