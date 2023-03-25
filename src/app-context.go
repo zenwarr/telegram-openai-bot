@@ -2,7 +2,6 @@ package src
 
 import (
 	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
 	"github.com/sashabaranov/go-openai"
 	"os"
 )
@@ -15,29 +14,24 @@ type AppContext struct {
 }
 
 func NewAppContext() (*AppContext, error) {
-	err := godotenv.Load()
-	if err != nil {
-		return nil, err
-	}
-
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
 		configPath = "config.json"
 	}
 
-	tg, err := tgapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	config, err := NewConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	openaiClient := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	tg, err := tgapi.NewBotAPI(config.TelegramToken)
+	if err != nil {
+		return nil, err
+	}
+
+	openaiClient := openai.NewClient(config.OpenAIApiKey)
 
 	db, err := NewDatabase("db")
-	if err != nil {
-		return nil, err
-	}
-
-	config, err := NewConfig(configPath)
 	if err != nil {
 		return nil, err
 	}

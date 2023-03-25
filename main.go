@@ -37,41 +37,46 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	if msgText == "/start" {
 		// onStart()
 	} else {
-		err := appContext.Database.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
+		dialogId := src.GetDialogId(appContext, &update)
+
+		err := appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: update.Message.Text,
 		})
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to save dialog message: %s", err)
 			return
 		}
 
-		dialogMessages, err := appContext.Database.GetDialog(update.Message.Chat.ID)
+		dialogMessages, err := appContext.Database.GetDialog(dialogId)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to get dialog messages: %s", err)
 			return
 		}
 
 		actionConfig := tgapi.NewChatAction(update.Message.Chat.ID, "typing")
 		_, err = appContext.TelegramBot.Send(actionConfig)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to send typing action: %s", err)
 		}
 
 		replyMsg, err := replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to get reply: %s", err)
 		}
 
-		err = appContext.Database.AddDialogMessage(update.Message.Chat.ID, protos.DialogMessage{
+		err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: replyMsg.Text,
 		})
 		if err != nil {
-			log.Println(err) // but still send the message
+			log.Printf("Failed to save dialog message: %s", err)
 		}
 
-		appContext.TelegramBot.Send(replyMsg)
+		_, err = appContext.TelegramBot.Send(replyMsg)
+		if err != nil {
+			log.Printf("Failed to send reply: %s", err)
+		}
 	}
 }
 

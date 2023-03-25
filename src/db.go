@@ -4,7 +4,6 @@ import (
 	"github.com/nutsdb/nutsdb"
 	"google.golang.org/protobuf/proto"
 	"openai-telegram-bot/src/protos"
-	"strconv"
 )
 
 type Database struct {
@@ -29,7 +28,7 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) AddDialogMessage(dialogId int64, msg protos.DialogMessage) error {
+func (d *Database) AddDialogMessage(dialogId string, msg protos.DialogMessage) error {
 	return d.db.Update(
 		func(tx *nutsdb.Tx) error {
 			marshalled, err := proto.Marshal(&msg)
@@ -37,17 +36,17 @@ func (d *Database) AddDialogMessage(dialogId int64, msg protos.DialogMessage) er
 				return err
 			}
 
-			return tx.RPush("messages", []byte(strconv.FormatInt(dialogId, 10)), marshalled)
+			return tx.RPush("messages", []byte(dialogId), marshalled)
 		},
 	)
 }
 
-func (d *Database) GetDialog(dialogId int64) ([]protos.DialogMessage, error) {
+func (d *Database) GetDialog(dialogId string) ([]protos.DialogMessage, error) {
 	var messages []protos.DialogMessage
 
 	err := d.db.View(
 		func(tx *nutsdb.Tx) error {
-			entries, err := tx.LRange("messages", []byte(strconv.FormatInt(dialogId, 10)), 0, -1)
+			entries, err := tx.LRange("messages", []byte(dialogId), 0, -1)
 			if err != nil {
 				return err
 			}
