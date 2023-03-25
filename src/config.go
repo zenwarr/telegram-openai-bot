@@ -19,6 +19,9 @@ type Config struct {
 	StreamResponse            bool   `json:"stream_response"`
 	SendReplies               bool   `json:"send_replies"`
 
+	DecodeVoice bool `json:"decode_voice"`
+	AnswerVoice bool `json:"answer_voice"`
+
 	Messages map[string]string `json:"messages"`
 }
 

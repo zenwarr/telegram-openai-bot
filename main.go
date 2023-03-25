@@ -40,7 +40,7 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	}
 
 	command := update.Message.Command()
-	if command == "start" || command == "" {
+	if command == "start" || command == "help" {
 		sendHello(appContext, update.Message.Chat.ID)
 		return
 	} else if command != "" {
@@ -48,11 +48,21 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
+	msgText, err := getTextFromMsg(appContext, update.Message)
+	if err != nil {
+		sendError(appContext, fmt.Sprintf("Failed to get text from message: %s", err), update.Message.Chat.ID)
+		return
+	}
+
+	if isVoiceMsg(update.Message) && !appContext.Config.AnswerVoice {
+		return
+	}
+
 	dialogId := src.GetDialogId(appContext, &update)
 
-	err := appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
+	err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 		Role:    openai.ChatMessageRoleUser,
-		Content: update.Message.Text,
+		Content: msgText,
 	})
 	if err != nil {
 		log.Printf("Failed to save dialog message: %s", err)
@@ -90,6 +100,36 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	})
 	if err != nil {
 		log.Printf("Failed to save dialog message: %s", err)
+	}
+}
+
+func isVoiceMsg(msg *tgapi.Message) bool {
+	return msg.Voice != nil
+}
+
+func getTextFromMsg(appContext *src.AppContext, msg *tgapi.Message) (string, error) {
+	if msg.Voice != nil {
+		if !appContext.Config.DecodeVoice {
+			return "", fmt.Errorf("voice decoding is disabled")
+		}
+
+		msgText, err := src.DecodeVoice(appContext, msg.Voice)
+		if err != nil {
+			return "", err
+		}
+
+		decodedMsg := tgapi.NewMessage(msg.Chat.ID, "Decoded: "+msgText)
+
+		_, err = appContext.TelegramBot.Send(decodedMsg)
+		if err != nil {
+			log.Printf("Failed to send decoded message: %s", err)
+		}
+
+		return msgText, nil
+	} else if msg.Text != "" {
+		return msg.Text, nil
+	} else {
+		return "", fmt.Errorf("unsupported message type")
 	}
 }
 
