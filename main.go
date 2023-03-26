@@ -49,6 +49,18 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
+	dialogId, err := src.GetDialogId(appContext, &update)
+	if err != nil {
+		log.Printf("Failed to get dialog id: %s", err)
+		return
+	}
+
+	err = resolveDialogContextLimits(appContext, dialogId, update.Message.Text, update.Message.Chat.ID)
+	if err != nil {
+		log.Printf("Failed to resolve dialog context limits: %s", err)
+		return
+	}
+
 	msgText, err := getTextFromMsg(appContext, update.Message)
 	if err != nil {
 		sendError(appContext, fmt.Sprintf("Failed to get text from message: %s", err), update.Message.Chat.ID)
@@ -58,8 +70,6 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	if isVoiceMsg(update.Message) && !appContext.Config.AnswerVoice {
 		return
 	}
-
-	dialogId := src.GetDialogId(appContext, &update)
 
 	err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 		Role:    openai.ChatMessageRoleUser,
@@ -88,6 +98,13 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	} else {
 		replyText, err = replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
 		if err != nil {
+			if src.GetLogicErrorCode(err) == src.LogicErrorContextLengthExceeded {
+				err := appContext.Database.SetDialogState(dialogId, src.DialogStateContextLimit)
+				if err != nil {
+					log.Printf("Failed to set dialog state: %s", err)
+				}
+			}
+
 			log.Printf("Failed to get reply: %s", err)
 		}
 	}
@@ -99,6 +116,77 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	if err != nil {
 		log.Printf("Failed to save dialog message: %s", err)
 	}
+}
+
+func resolveDialogContextLimits(appContext *src.AppContext, dialogId string, userReply string, chatId int64) error {
+	dialogState, err := appContext.Database.GetDialogState(dialogId)
+	if err != nil {
+		return fmt.Errorf("failed to get dialog state: %s", err)
+	}
+
+	if dialogState == src.DialogStateContextLimit {
+		if userReply == "Start anew" {
+			// delete this dialog
+			err := appContext.Database.DeleteDialog(dialogId)
+			if err != nil {
+				return fmt.Errorf("failed to delete dialog: %s", err)
+			}
+		} else if userReply == "Forget beginning" {
+			err := appContext.Database.DecimateDialog(dialogId)
+			if err != nil {
+				return fmt.Errorf("failed to decimate dialog: %s", err)
+			}
+		} else if userReply == "Summarize history" {
+			dialogMessages, err := appContext.Database.GetDialog(dialogId)
+			if err != nil {
+				return fmt.Errorf("failed to get dialog messages: %s", err)
+			}
+
+			merged := mergeDialog(dialogMessages)
+
+			answer, err := src.GetCompleteReply(appContext, []protos.DialogMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: "Summarize this: \n\n" + merged,
+				},
+			})
+
+			err = appContext.Database.ReplaceDialog(dialogId, &protos.DialogMessage{
+				Role:    openai.ChatMessageRoleUser,
+				Content: answer,
+			})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		} else {
+			sendError(appContext, fmt.Sprintf("Unknown dialog state reply: %s", userReply), chatId)
+			return fmt.Errorf("unknown dialog state reply: %s", userReply)
+		}
+
+		// delete dialog state
+		err = appContext.Database.SetDialogState(dialogId, src.DialogStateNone)
+		if err != nil {
+			return fmt.Errorf("failed to delete dialog state: %s", err)
+		}
+	}
+
+	return nil
+}
+
+func mergeDialog(dialogMessages []protos.DialogMessage) string {
+	builder := strings.Builder{}
+
+	for _, msg := range dialogMessages {
+		if msg.Role == openai.ChatMessageRoleUser {
+			builder.WriteString("User: " + msg.Content + "#END#")
+		} else {
+			builder.WriteString("Assistant: " + msg.Content + "#END#")
+		}
+	}
+
+	return builder.String()
 }
 
 func isVoiceMsg(msg *tgapi.Message) bool {
@@ -134,6 +222,11 @@ func getTextFromMsg(appContext *src.AppContext, msg *tgapi.Message) (string, err
 func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatID int64, messageID int) (string, error) {
 	reply, err := src.GetCompleteReply(appContext, dialogMessages)
 	if err != nil {
+		if logicErr, ok := err.(src.LogicError); ok && logicErr.Code == src.LogicErrorContextLengthExceeded {
+			handleContextLengthExceeded(appContext, chatID, len(dialogMessages))
+			return "", err
+		}
+
 		return "", err
 	}
 
@@ -151,6 +244,26 @@ func replyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessa
 	}
 
 	return msg.Text, nil
+}
+
+var dialogCloseKeyboard = tgapi.NewReplyKeyboard(
+	tgapi.NewKeyboardButtonRow(
+		tgapi.NewKeyboardButton("Start anew"),
+		tgapi.NewKeyboardButton("Forget beginning"),
+		tgapi.NewKeyboardButton("Summarize history"),
+	),
+)
+
+func handleContextLengthExceeded(appContext *src.AppContext, chatId int64, messageCount int) {
+	msg := tgapi.NewMessage(chatId, fmt.Sprintf("‼ Dialog context is too long (%d messages total). Please choose how to continue:", messageCount))
+	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
+	msg.ReplyMarkup = dialogCloseKeyboard
+
+	_, err := appContext.TelegramBot.Send(msg)
+	if err != nil {
+		log.Printf("Failed to send reply: %s", err)
+	}
 }
 
 func streamingReplyToText(appContext *src.AppContext, dialogMessages []protos.DialogMessage, chatId int64, replyTo int) (string, error) {

@@ -27,6 +27,13 @@ func GetCompleteReply(appContext *AppContext, messages []protos.DialogMessage) (
 	)
 
 	if err != nil {
+		if getOpenAIErrorCode(err) == "context_length_exceeded" {
+			return "", LogicError{
+				Code:    LogicErrorContextLengthExceeded,
+				Message: "Context length exceeded",
+			}
+		}
+
 		log.Printf("Failed to get OpenAI reply: %s", err)
 		return "", err
 	}
