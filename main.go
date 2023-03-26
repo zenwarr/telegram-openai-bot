@@ -19,6 +19,8 @@ func main() {
 
 	log.Printf("Authorized on account %s", appContext.TelegramBot.Self.UserName)
 
+	setBotCommands(appContext)
+
 	u := tgapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -26,6 +28,21 @@ func main() {
 
 	for update := range updates {
 		handleUpdate(appContext, update)
+	}
+}
+
+func setBotCommands(appContext *src.AppContext) {
+	setCommands := tgapi.NewSetMyCommands(tgapi.BotCommand{
+		Command:     "help",
+		Description: "Usage help",
+	}, tgapi.BotCommand{
+		Command:     "new",
+		Description: "Start a new dialog",
+	})
+
+	_, err := appContext.TelegramBot.Request(setCommands)
+	if err != nil {
+		log.Printf("Failed to set bot commands: %s", err)
 	}
 }
 
