@@ -3,7 +3,6 @@ package src
 import (
 	"encoding/json"
 	"os"
-	"time"
 )
 
 const DialogContextTrackingModeNone = "none"
@@ -17,7 +16,6 @@ type Config struct {
 	Users []string `json:"users"`
 
 	DialogContextTrackingMode string `json:"dialog_context_tracking_mode"`
-	DialogContextExpire       string `json:"dialog_context_expire"`
 	StreamResponse            bool   `json:"stream_response"`
 	SendReplies               bool   `json:"send_replies"`
 
@@ -49,18 +47,4 @@ func (config *Config) GetMessage(name string, def string) string {
 	}
 
 	return def
-}
-
-func (config *Config) GetDialogContextExpireDuration() time.Duration {
-	value := config.DialogContextExpire
-	if value == "" {
-		return 0
-	}
-
-	duration, err := time.ParseDuration(value)
-	if err != nil {
-		return 0
-	}
-
-	return duration.Abs()
 }

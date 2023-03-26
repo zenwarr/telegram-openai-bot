@@ -49,13 +49,9 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	dialogId, err := src.GetDialogId(appContext, &update)
-	if err != nil {
-		log.Printf("Failed to get dialog id: %s", err)
-		return
-	}
+	dialogId := src.GetDialogId(appContext, &update)
 
-	err = resolveDialogContextLimits(appContext, dialogId, update.Message.Text, update.Message.Chat.ID)
+	err := resolveDialogContextLimits(appContext, dialogId, update.Message.Text, update.Message.Chat.ID)
 	if err != nil {
 		log.Printf("Failed to resolve dialog context limits: %s", err)
 		return

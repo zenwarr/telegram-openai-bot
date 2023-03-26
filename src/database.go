@@ -76,7 +76,12 @@ func (d *Database) GetDialog(dialogId string) ([]protos.DialogMessage, error) {
 func (d *Database) DeleteDialog(dialogId string) error {
 	return d.db.Update(
 		func(tx *nutsdb.Tx) error {
-			return tx.LTrim("messages", []byte(dialogId), 0, -1)
+			err := tx.LTrim("messages", []byte(dialogId), 0, -1)
+			if err != nil && !nutsdb.IsBucketNotFound(err) {
+				return err
+			}
+
+			return nil
 		},
 	)
 }
@@ -162,7 +167,7 @@ func (d *Database) SetNotWantedSent(userId int64) error {
 	)
 }
 
-func (d *Database) GetLastInteractionTime(dialogId string) (*time.Time, error) {
+func (d *Database) GetLastInteractionTime(dialogId string) (time.Time, error) {
 	var lastInteractionTime time.Time
 
 	err := d.db.View(
@@ -182,10 +187,10 @@ func (d *Database) GetLastInteractionTime(dialogId string) (*time.Time, error) {
 		},
 	)
 	if err != nil {
-		return nil, err
+		return lastInteractionTime, err
 	}
 
-	return &lastInteractionTime, nil
+	return lastInteractionTime, nil
 }
 
 const DialogStateNone = 0
