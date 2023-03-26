@@ -138,6 +138,9 @@ func resolveDialogContextLimits(appContext *src.AppContext, dialogId string, use
 				return fmt.Errorf("failed to get dialog messages: %s", err)
 			}
 
+			// cut off 75% of the dialog
+			dialogMessages = dialogMessages[len(dialogMessages)/4:]
+
 			merged := mergeDialog(dialogMessages)
 
 			answer, err := src.GetCompleteReply(appContext, []protos.DialogMessage{
