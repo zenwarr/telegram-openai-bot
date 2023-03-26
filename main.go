@@ -40,16 +40,11 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	command := update.Message.Command()
-	if command == "start" || command == "help" {
-		sendHello(appContext, update.Message.Chat.ID)
-		return
-	} else if command != "" {
-		sendError(appContext, fmt.Sprintf("Unknown command: %s", command), update.Message.Chat.ID)
+	dialogId := src.GetDialogId(appContext, &update)
+
+	if handleCommand(appContext, dialogId, update.Message) {
 		return
 	}
-
-	dialogId := src.GetDialogId(appContext, &update)
 
 	err := resolveDialogContextLimits(appContext, dialogId, update.Message.Text, update.Message.Chat.ID)
 	if err != nil {
@@ -67,7 +62,31 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	err = appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
+	answerMessage(appContext, dialogId, msgText, update.Message)
+}
+
+func handleCommand(appContext *src.AppContext, dialogId string, msg *tgapi.Message) bool {
+	command := msg.Command()
+	if command == "start" || command == "help" {
+		sendHello(appContext, msg.Chat.ID)
+		return true
+	} else if command == "new" {
+		err := appContext.Database.DeleteDialog(dialogId)
+		if err != nil {
+			log.Printf("Failed to delete dialog: %s", err)
+		}
+
+		return true
+	} else if command != "" {
+		sendError(appContext, fmt.Sprintf("Unknown command: %s", command), msg.Chat.ID)
+		return true
+	}
+
+	return false
+}
+
+func answerMessage(appContext *src.AppContext, dialogId string, msgText string, msg *tgapi.Message) {
+	err := appContext.Database.AddDialogMessage(dialogId, protos.DialogMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: msgText,
 	})
@@ -82,17 +101,17 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 		return
 	}
 
-	endTyping := src.StartTypingStatus(appContext, update.Message.Chat.ID)
+	endTyping := src.StartTypingStatus(appContext, msg.Chat.ID)
 	defer func() { endTyping <- true }()
 
 	replyText := ""
 	if appContext.Config.StreamResponse {
-		replyText, err = streamingReplyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+		replyText, err = streamingReplyToText(appContext, dialogMessages, msg.Chat.ID, msg.MessageID)
 		if err != nil {
 			log.Printf("Failed to get reply: %s", err)
 		}
 	} else {
-		replyText, err = replyToText(appContext, dialogMessages, update.Message.Chat.ID, update.Message.MessageID)
+		replyText, err = replyToText(appContext, dialogMessages, msg.Chat.ID, msg.MessageID)
 		if err != nil {
 			if src.GetLogicErrorCode(err) == src.LogicErrorContextLengthExceeded {
 				err := appContext.Database.SetDialogState(dialogId, src.DialogStateContextLimit)
