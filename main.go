@@ -138,21 +138,14 @@ func resolveDialogContextLimits(appContext *src.AppContext, dialogId string, use
 				return fmt.Errorf("failed to get dialog messages: %s", err)
 			}
 
-			// cut off 75% of the dialog
-			dialogMessages = dialogMessages[len(dialogMessages)/4:]
-
-			merged := mergeDialog(dialogMessages)
-
-			answer, err := src.GetCompleteReply(appContext, []protos.DialogMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: "Summarize this: \n\n" + merged,
-				},
-			})
+			summary, err := summarizeDialog(appContext, dialogMessages)
+			if err != nil {
+				return fmt.Errorf("failed to summarize dialog: %s", err)
+			}
 
 			err = appContext.Database.ReplaceDialog(dialogId, &protos.DialogMessage{
 				Role:    openai.ChatMessageRoleUser,
-				Content: answer,
+				Content: summary,
 			})
 			if err != nil {
 				return err
@@ -172,6 +165,39 @@ func resolveDialogContextLimits(appContext *src.AppContext, dialogId string, use
 	}
 
 	return nil
+}
+
+func summarizeDialog(appContext *src.AppContext, dialogMessages []protos.DialogMessage) (string, error) {
+	firstSummary, err := src.GetCompleteReply(appContext, []protos.DialogMessage{
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: "Summarize this: \n\n" + mergeDialog(dialogMessages[:len(dialogMessages)/2]),
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	summary, err := src.GetCompleteReply(appContext, []protos.DialogMessage{
+		{
+			Role: openai.ChatMessageRoleUser,
+			Content: fmt.Sprintf(
+				"Text after #PREV# and #PREV# is a summary of previous dialog with the assistent. Summarize the dialog that continues with messages between #CONT# and #CONT#: \n\n#PREV#%s#PREV\n\n#CONT#%s#CONT#",
+				firstSummary,
+				mergeDialog(dialogMessages[len(dialogMessages)/2:]),
+			),
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	summary = strings.ReplaceAll(summary, "#CONT#", "")
+	summary = strings.ReplaceAll(summary, "#PREV#", "")
+
+	summary = fmt.Sprintf("This is a summary of previous dialog messages: \n\n%s", summary)
+
+	return summary, err
 }
 
 func mergeDialog(dialogMessages []protos.DialogMessage) string {
