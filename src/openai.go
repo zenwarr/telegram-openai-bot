@@ -81,9 +81,11 @@ func StreamReply(appContext *AppContext, messages []protos.DialogMessage, replyC
 }
 
 func Imagine(appContext *AppContext, prompt string) (string, error) {
+	prompt, size := parsePrompt(prompt)
+
 	reqUrl := openai.ImageRequest{
 		Prompt:         prompt,
-		Size:           openai.CreateImageSize256x256,
+		Size:           size,
 		ResponseFormat: openai.CreateImageResponseFormatURL,
 		N:              1,
 	}
@@ -94,4 +96,20 @@ func Imagine(appContext *AppContext, prompt string) (string, error) {
 	}
 
 	return respUrl.Data[0].URL, nil
+}
+
+// you can specify generated image size by mentioning a pattern like `@mid` in the prompt
+// so we need to check presence of this pattern and remove it from the prompt
+func parsePrompt(prompt string) (string, string) {
+	size := openai.CreateImageSize256x256
+
+	if len(prompt) > 4 && prompt[len(prompt)-4:] == "@mid" {
+		size = openai.CreateImageSize512x512
+		prompt = prompt[:len(prompt)-4]
+	} else if len(prompt) > 5 && prompt[len(prompt)-5:] == "@high" {
+		size = openai.CreateImageSize1024x1024
+		prompt = prompt[:len(prompt)-5]
+	}
+
+	return prompt, size
 }
