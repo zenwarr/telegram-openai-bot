@@ -2,10 +2,10 @@ package src
 
 import (
 	"fmt"
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func CheckUserAccess(appContext *AppContext, update *tgapi.Update) bool {
+func CheckUserAccess(appContext *AppContext, update *tgbotapi.Update) bool {
 	allowedUsers := appContext.Config.Users
 	if len(allowedUsers) == 0 {
 		return true

@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/nutsdb/nutsdb v0.12.0
+	github.com/rs/zerolog v1.29.0
 	github.com/sashabaranov/go-openai v1.5.7
 	google.golang.org/protobuf v1.30.0
 )
@@ -12,6 +13,8 @@ require (
 require (
 	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/xujiajun/mmap-go v1.0.1 // indirect
 	github.com/xujiajun/utils v0.0.0-20220904132955-5f7c5b914235 // indirect

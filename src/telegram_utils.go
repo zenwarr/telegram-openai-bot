@@ -2,7 +2,7 @@ package src
 
 import (
 	"fmt"
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func GetFormattedUserName(userName string, userId int64) string {
@@ -13,6 +13,6 @@ func GetFormattedUserName(userName string, userId int64) string {
 	}
 }
 
-func GetFormattedSenderName(msg *tgapi.Message) string {
+func GetFormattedSenderName(msg *tgbotapi.Message) string {
 	return GetFormattedUserName(msg.From.UserName, msg.From.ID)
 }

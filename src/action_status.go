@@ -1,8 +1,8 @@
 package src
 
 import (
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"log"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/rs/zerolog/log"
 	"time"
 )
 
@@ -26,10 +26,10 @@ func StartTypingStatus(appContext *AppContext, chatId int64) chan interface{} {
 	ch := make(chan interface{})
 
 	go StatusUpdate(ch, func() {
-		actionConfig := tgapi.NewChatAction(chatId, "typing")
+		actionConfig := tgbotapi.NewChatAction(chatId, "typing")
 		_, err := appContext.TelegramBot.Send(actionConfig)
 		if err != nil {
-			log.Printf("Failed to send typing action: %s", err)
+			log.Error().Err(err).Msg("Failed to send typing action")
 		}
 	})
 

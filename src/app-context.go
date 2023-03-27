@@ -1,14 +1,15 @@
 package src
 
 import (
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/rs/zerolog"
 	"github.com/sashabaranov/go-openai"
 	"os"
 )
 
 type AppContext struct {
 	Config      *Config
-	TelegramBot *tgapi.BotAPI
+	TelegramBot *tgbotapi.BotAPI
 	OpenAI      *openai.Client
 	Database    *Database
 }
@@ -24,7 +25,7 @@ func NewAppContext() (*AppContext, error) {
 		return nil, err
 	}
 
-	tg, err := tgapi.NewBotAPI(config.TelegramToken)
+	tg, err := tgbotapi.NewBotAPI(config.TelegramToken)
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +36,8 @@ func NewAppContext() (*AppContext, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	return &AppContext{
 		Config:      config,

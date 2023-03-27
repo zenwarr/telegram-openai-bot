@@ -2,7 +2,7 @@ package src
 
 import (
 	"context"
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sashabaranov/go-openai"
 	"io"
 	"net/http"
@@ -11,7 +11,7 @@ import (
 	"path"
 )
 
-func DecodeVoice(appContext *AppContext, voice *tgapi.Voice) (string, error) {
+func DecodeVoice(appContext *AppContext, voice *tgbotapi.Voice) (string, error) {
 	downloaded, err := DownloadVoice(appContext, voice)
 	if err != nil {
 		return "", err
@@ -30,8 +30,8 @@ func DecodeVoice(appContext *AppContext, voice *tgapi.Voice) (string, error) {
 	return resp.Text, nil
 }
 
-func DownloadVoice(appContext *AppContext, voice *tgapi.Voice) (string, error) {
-	file, err := appContext.TelegramBot.GetFile(tgapi.FileConfig{
+func DownloadVoice(appContext *AppContext, voice *tgbotapi.Voice) (string, error) {
+	file, err := appContext.TelegramBot.GetFile(tgbotapi.FileConfig{
 		FileID: voice.FileID,
 	})
 	if err != nil {

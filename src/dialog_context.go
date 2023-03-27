@@ -2,10 +2,10 @@ package src
 
 import (
 	"fmt"
-	tgapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func GetDialogId(appContext *AppContext, update *tgapi.Update) string {
+func GetDialogId(appContext *AppContext, update *tgbotapi.Update) string {
 	mode := appContext.Config.DialogContextTrackingMode
 	if mode == DialogContextTrackingModeNone {
 		return fmt.Sprintf("msg:%d", update.Message.MessageID)

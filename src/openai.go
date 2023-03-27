@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/sashabaranov/go-openai"
 	"io"
-	"log"
 	"openai-telegram-bot/src/protos"
 )
 
@@ -34,7 +33,6 @@ func GetCompleteReply(appContext *AppContext, messages []protos.DialogMessage) (
 			}
 		}
 
-		log.Printf("Failed to get OpenAI reply: %s", err)
 		return "", err
 	}
 
