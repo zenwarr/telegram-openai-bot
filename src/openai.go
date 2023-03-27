@@ -79,3 +79,19 @@ func StreamReply(appContext *AppContext, messages []protos.DialogMessage, replyC
 
 	return nil
 }
+
+func Imagine(appContext *AppContext, prompt string) (string, error) {
+	reqUrl := openai.ImageRequest{
+		Prompt:         prompt,
+		Size:           openai.CreateImageSize256x256,
+		ResponseFormat: openai.CreateImageResponseFormatURL,
+		N:              1,
+	}
+
+	respUrl, err := appContext.OpenAI.CreateImage(context.Background(), reqUrl)
+	if err != nil {
+		return "", err
+	}
+
+	return respUrl.Data[0].URL, nil
+}

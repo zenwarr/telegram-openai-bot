@@ -38,6 +38,9 @@ func setBotCommands(appContext *src.AppContext) {
 	}, tgapi.BotCommand{
 		Command:     "new",
 		Description: "Start a new dialog",
+	}, tgapi.BotCommand{
+		Command:     "imagine",
+		Description: "Generate image from text",
 	})
 
 	_, err := appContext.TelegramBot.Request(setCommands)
@@ -103,12 +106,41 @@ func handleCommand(appContext *src.AppContext, dialogId string, msg *tgapi.Messa
 		}
 
 		return true
+	} else if command == "imagine" {
+		generateImage(appContext, msg.CommandArguments(), msg)
+		return true
 	} else if command != "" {
 		sendError(appContext, fmt.Sprintf("Unknown command: %s", command), msg.Chat.ID)
 		return true
 	}
 
 	return false
+}
+
+func generateImage(appContext *src.AppContext, prompt string, msg *tgapi.Message) {
+	if prompt == "" {
+		sendError(appContext, "Please provide a prompt", msg.Chat.ID)
+		return
+	}
+
+	endTyping := src.StartTypingStatus(appContext, msg.Chat.ID)
+	defer func() { endTyping <- true }()
+
+	replyUrl, err := src.Imagine(appContext, prompt)
+	if err != nil {
+		sendError(appContext, fmt.Sprintf("Failed to generate image: %s", err), msg.Chat.ID)
+		return
+	}
+
+	replyMsg := tgapi.NewPhoto(msg.Chat.ID, tgapi.FileURL(replyUrl))
+	if appContext.Config.SendReplies {
+		replyMsg.ReplyToMessageID = msg.MessageID
+	}
+
+	_, err = appContext.TelegramBot.Send(replyMsg)
+	if err != nil {
+		log.Printf("Failed to send reply: %s", err)
+	}
 }
 
 func answerMessage(appContext *src.AppContext, dialogId string, msgText string, msg *tgapi.Message) {
