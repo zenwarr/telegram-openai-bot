@@ -21,7 +21,7 @@ func GetCompleteReply(appContext *AppContext, messages []protos.DialogMessage) (
 	resp, err := appContext.OpenAI.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo0301,
+			Model:    openai.GPT3Dot5Turbo,
 			Messages: openaiMessages,
 		},
 	)
