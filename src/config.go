@@ -22,6 +22,8 @@ type Config struct {
 	DecodeVoice bool `json:"decode_voice"`
 	AnswerVoice bool `json:"answer_voice"`
 
+	GenerateImages bool `json:"generate_images"`
+
 	Messages map[string]string `json:"messages"`
 }
 

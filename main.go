@@ -118,6 +118,11 @@ func handleCommand(appContext *src.AppContext, dialogId string, msg *tgapi.Messa
 }
 
 func generateImage(appContext *src.AppContext, prompt string, msg *tgapi.Message) {
+	if !appContext.Config.GenerateImages {
+		sendError(appContext, "Image generation is disabled", msg.Chat.ID)
+		return
+	}
+
 	if prompt == "" {
 		sendError(appContext, "Please provide a prompt", msg.Chat.ID)
 		return
