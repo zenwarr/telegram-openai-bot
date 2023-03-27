@@ -27,7 +27,7 @@ func main() {
 	updates := appContext.TelegramBot.GetUpdatesChan(u)
 
 	for update := range updates {
-		handleUpdate(appContext, update)
+		go handleUpdate(appContext, update)
 	}
 }
 
@@ -58,6 +58,15 @@ func handleUpdate(appContext *src.AppContext, update tgapi.Update) {
 	}
 
 	dialogId := src.GetDialogId(appContext, &update)
+
+	isAnswering := src.GetDialogEphemeralStatus(dialogId)
+	if isAnswering {
+		log.Printf("Ignored message from %s because model is already asnwering", src.GetFormattedSenderName(update.Message))
+		return
+	}
+
+	src.SetDialogEphemeralStatus(dialogId, true)
+	defer src.SetDialogEphemeralStatus(dialogId, false)
 
 	if handleCommand(appContext, dialogId, update.Message) {
 		return
