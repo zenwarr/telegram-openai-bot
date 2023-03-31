@@ -77,11 +77,11 @@ func handleCommand(appContext *AppContext, dialogId string, msg *tgbotapi.Messag
 	command := msg.Command()
 	if command == "start" || command == "help" {
 		sendHello(appContext, msg.Chat.ID)
-		return true
 	} else if command == "new" {
-		err := appContext.Database.DeleteDialog(dialogId)
+		err := appContext.Database.ClearDialog(dialogId)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to delete dialog")
+			return true
 		}
 
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❕New dialog started!")
@@ -92,17 +92,13 @@ func handleCommand(appContext *AppContext, dialogId string, msg *tgbotapi.Messag
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to send new dialog notification")
 		}
-
-		return true
 	} else if command == "imagine" {
 		generateImage(appContext, msg.CommandArguments(), msg)
-		return true
 	} else if command != "" {
 		sendError(appContext, fmt.Sprintf("Unknown command: %s", command), msg.Chat.ID)
-		return true
 	}
 
-	return false
+	return command != ""
 }
 
 func generateImage(appContext *AppContext, prompt string, msg *tgbotapi.Message) {
@@ -193,7 +189,7 @@ func resolveDialogContextLimits(appContext *AppContext, dialogId string, userRep
 	if dialogState == DialogStateContextLimit {
 		if userReply == "Start anew" {
 			// delete this dialog
-			err := appContext.Database.DeleteDialog(dialogId)
+			err := appContext.Database.ClearDialog(dialogId)
 			if err != nil {
 				return fmt.Errorf("failed to delete dialog: %s", err)
 			}

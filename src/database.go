@@ -73,10 +73,19 @@ func (d *Database) GetDialog(dialogId string) ([]protos.DialogMessage, error) {
 	return messages, nil
 }
 
-func (d *Database) DeleteDialog(dialogId string) error {
+func (d *Database) ClearDialog(dialogId string) error {
 	return d.db.Update(
 		func(tx *nutsdb.Tx) error {
-			err := tx.LTrim("messages", []byte(dialogId), 0, -1)
+			key := []byte(dialogId)
+
+			// looks like we cannot just remove a list with `Delete`, and we can't clear an entire list with `LTrim`
+			// without one item left in it, so we have to do this instead
+			err := tx.LTrim("messages", key, 0, 0)
+			if err != nil && !nutsdb.IsBucketNotFound(err) {
+				return err
+			}
+
+			_, err = tx.LPop("messages", key)
 			if err != nil && !nutsdb.IsBucketNotFound(err) {
 				return err
 			}
