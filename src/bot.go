@@ -84,6 +84,15 @@ func handleCommand(appContext *AppContext, dialogId string, msg *tgbotapi.Messag
 			log.Error().Err(err).Msg("Failed to delete dialog")
 		}
 
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❕New dialog started!")
+		if appContext.Config.SendReplies {
+			reply.ReplyToMessageID = msg.MessageID
+		}
+		_, err = appContext.TelegramBot.Send(reply)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to send new dialog notification")
+		}
+
 		return true
 	} else if command == "imagine" {
 		generateImage(appContext, msg.CommandArguments(), msg)
