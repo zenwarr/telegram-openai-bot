@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/nutsdb/nutsdb"
+	"github.com/nutsdb/nutsdb/ds/list"
 	"google.golang.org/protobuf/proto"
 	"openai-telegram-bot/src/protos"
 	"time"
@@ -82,12 +83,12 @@ func (d *Database) ClearDialog(dialogId string) error {
 			// looks like we cannot just remove a list with `Delete`, and we can't clear an entire list with `LTrim`
 			// without one item left in it, so we have to do this instead
 			err := tx.LTrim("messages", key, 0, 0)
-			if err != nil && !(nutsdb.IsBucketNotFound(err) || errors.Is(err, nutsdb.ErrBucket)) {
+			if err != nil && !(nutsdb.IsBucketNotFound(err) || errors.Is(err, nutsdb.ErrBucket) || errors.Is(err, list.ErrListNotFound)) {
 				return err
 			}
 
 			_, err = tx.LPop("messages", key)
-			if err != nil && !(nutsdb.IsBucketNotFound(err) || errors.Is(err, nutsdb.ErrBucket)) {
+			if err != nil && !(nutsdb.IsBucketNotFound(err) || errors.Is(err, nutsdb.ErrBucket) || errors.Is(err, list.ErrListNotFound)) {
 				return err
 			}
 
